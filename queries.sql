@@ -35,14 +35,15 @@ SELECT
   task_index,
   task_name,
   job_index,
-  initial_rss_request,
-  final_rss_request,
   input_size,
   output_size,
   rss,
-  evictions,
-  retry_time,
   run_time,
+  initial_rss_request,
+  final_rss_request,
+  evictions,
+  mean_ttf,
+  failed_GB_hours,
   task_id
 FROM
   (
@@ -147,7 +148,10 @@ FROM
   ) rss ON true LEFT JOIN LATERAL (
     SELECT
       count(task_id) as evictions,
-      sum((json(stat) #>> '{time_used}')::float) as retry_time
+      avg((json(stat) #>> '{resources,time}')::float) as mean_ttf,
+      sum(
+        (json(stat) #>> '{resources,time}')::float
+        *(json(stat) #>> '{resources,memory}')::float) as failed_GB_hours
     FROM
       task_stat
     WHERE
@@ -157,7 +161,7 @@ FROM
       task_id
   ) evictions ON true LEFT JOIN LATERAL (
     SELECT
-      sum((json(stat) #>> '{resources,time}')::float)*3600 as run_time
+      sum((json(stat) #>> '{resources,time}')::float) as run_time
     FROM
       task_stat
     WHERE
