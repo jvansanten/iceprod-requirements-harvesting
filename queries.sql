@@ -31,17 +31,19 @@ $$ LANGUAGE plpgsql;
 
 SELECT
   id2num(dataset_id) as dataset_id,
+  -- dataset_id,
   task_index,
   task_name,
   job_index,
   initial_rss_request,
   final_rss_request,
   input_size,
+  output_size,
   rss,
   evictions,
-  retry_hours
-  -- task_id,
-  -- task_status
+  retry_time,
+  run_time,
+  task_id
 FROM
   (
     SELECT
@@ -49,7 +51,12 @@ FROM
       requirements,
       task_rel_id
     FROM
-      task
+      task 
+      -- INNER JOIN search USING (task_id)
+      -- WHERE
+      -- dataset_id='\x4f317239396335376c754d586b4b' AND name='\x6465746563746f72'
+      -- LIMIT
+      -- 100
   ) task INNER JOIN LATERAL (
     SELECT
       encode(dataset_id, 'escape') as dataset_id,
@@ -93,7 +100,7 @@ FROM
       job_id=search.job_id
   ) job ON true LEFT JOIN LATERAL ( -- left join here, because some tasks don't have inputs
     SELECT
-      sum((record #>> '{size}')::int) as input_size
+      sum((record #>> '{size}')::bigint)/pow(2.0,30.0) as input_size
     FROM
       (
         SELECT
@@ -109,7 +116,25 @@ FROM
     GROUP BY
       task_stat_id
     LIMIT 1
-  ) input_size ON true INNER JOIN LATERAL (
+  ) input_size ON true INNER JOIN LATERAL ( -- all sensible tasks have outputs
+    SELECT
+      sum((record #>> '{size}')::bigint)/pow(2.0,30.0) as output_size
+    FROM
+      (
+        SELECT
+          task_stat_id,
+          json_array_elements(json(stat) #> '{task_stats,upload}') as record
+        FROM
+          task_stat
+        WHERE
+          task_id=task.task_id
+      ) unnested
+    WHERE
+      (record #>> '{error}')::bool is false
+    GROUP BY
+      task_stat_id
+    LIMIT 1
+  ) output_size ON true INNER JOIN LATERAL (
     SELECT
       max((json(stat) #>> '{resources,memory}')::float) as rss
     FROM
@@ -122,7 +147,7 @@ FROM
   ) rss ON true LEFT JOIN LATERAL (
     SELECT
       count(task_id) as evictions,
-      sum((json(stat) #>> '{time_used}')::float) as retry_hours
+      sum((json(stat) #>> '{time_used}')::float) as retry_time
     FROM
       task_stat
     WHERE
@@ -130,6 +155,17 @@ FROM
       (json(stat) #>> '{error_summary}') LIKE 'Resource overusage for memory%'
     GROUP BY
       task_id
-  ) evictions ON true
+  ) evictions ON true LEFT JOIN LATERAL (
+    SELECT
+      sum((json(stat) #>> '{resources,time}')::float)*3600 as run_time
+    FROM
+      task_stat
+    WHERE
+      task_id=task.task_id AND
+      (json(stat) #>> '{error}')::bool IS NOT TRUE
+    GROUP BY
+      task_id
+  ) run_time ON true
 -- WHERE evictions > 0
+WHERE output_size > 0
 ;
