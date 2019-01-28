@@ -29,6 +29,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- running time 13569 seconds (3.7 hours)
+
 SELECT
   id2num(dataset_id) as dataset_id,
   -- dataset_id,
@@ -44,6 +46,9 @@ SELECT
   evictions,
   mean_ttf,
   failed_GB_hours,
+  input_duration,
+  output_duration,
+  time_finished,
   task_id
 FROM
   (
@@ -57,7 +62,7 @@ FROM
       -- WHERE
       -- dataset_id='\x4f317239396335376c754d586b4b' AND name='\x6465746563746f72'
       -- LIMIT
-      -- 100
+      -- 10
   ) task INNER JOIN LATERAL (
     SELECT
       encode(dataset_id, 'escape') as dataset_id,
@@ -101,7 +106,8 @@ FROM
       job_id=search.job_id
   ) job ON true LEFT JOIN LATERAL ( -- left join here, because some tasks don't have inputs
     SELECT
-      sum((record #>> '{size}')::bigint)/pow(2.0,30.0) as input_size
+      sum((record #>> '{size}')::bigint)/pow(2.0,30.0) as input_size,
+      sum((record #>> '{duration}')::float)/3600.0 as input_duration
     FROM
       (
         SELECT
@@ -119,7 +125,8 @@ FROM
     LIMIT 1
   ) input_size ON true INNER JOIN LATERAL ( -- all sensible tasks have outputs
     SELECT
-      sum((record #>> '{size}')::bigint)/pow(2.0,30.0) as output_size
+      sum((record #>> '{size}')::bigint)/pow(2.0,30.0) as output_size,
+      sum((record #>> '{duration}')::float)/3600.0 as output_duration
     FROM
       (
         SELECT
@@ -137,7 +144,8 @@ FROM
     LIMIT 1
   ) output_size ON true INNER JOIN LATERAL (
     SELECT
-      max((json(stat) #>> '{resources,memory}')::float) as rss
+      max((json(stat) #>> '{resources,memory}')::float) as rss,
+      max((json(stat) #>> '{time}')::timestamp) as time_finished
     FROM
       task_stat
     WHERE
