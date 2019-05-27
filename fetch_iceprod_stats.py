@@ -4,6 +4,7 @@
 Fetch IceProd2 task stats via REST API and dump them to an HDF5 table
 """
 
+import time
 import os
 import asyncio
 import aiohttp
@@ -37,17 +38,16 @@ def giveup(exc):
     logger=None,
     giveup=giveup,
     on_backoff=on_backoff)
-async def limited_req(path, session, semaphore):
+async def limited_req(path, session, semaphore, **kwargs):
     """
     Acquire semaphore and issue a GET request
     """
     async with semaphore:
-        response = await session.get('https://iceprod2-api.icecube.wisc.edu'+path)
-        return await response.json()
+        async with session.get('https://iceprod2-api.icecube.wisc.edu'+path, params=kwargs) as response:
+            return await response.json()
 
-async def process_task_stats(req, dataset, task):
+async def process_task_stats(req, dataset, job, task):
     stats = await req('/datasets/{}/tasks/{}/task_stats'.format(task['dataset_id'], task['task_id']))
-    job = await req('/datasets/{}/jobs/{}'.format(task['dataset_id'], task['job_id']))
 
     item = {k+'_req':v for k,v in task['requirements'].items()}
     try:
@@ -75,33 +75,24 @@ async def process_task_stats(req, dataset, task):
     return index, item
 
 async def process_tasks(req, dataset):
-    tasks = await req('/datasets/{}/tasks'.format(dataset['dataset_id']))
-    finished_tasks = []
-    for i,(k, v) in enumerate(tasks.items()):
-        # if v['status'] == 'complete' and v['status_changed'] > '2019-01-30T00:00:00':
-        if v['status'] == 'complete':
-            finished_tasks.append(v)
-    return [process_task_stats(req, dataset, task) for task in finished_tasks]
-
-async def get_datasets(req):
-    semaphore = asyncio.Semaphore(parallel_requests)
-    async with aiohttp.ClientSession(headers={'Authorization': 'bearer '+token}, raise_for_status=True) as session:
-        req = partial(limited_req, session=session, semaphore=semaphore)
-        datasets = await req('/datasets')
-    return datasets
+    tasks = await req('/datasets/{}/tasks'.format(dataset['dataset_id']), status='complete', keys='dataset_id|job_id|task_id|task_index|requirements')
+    jobs = await req('/datasets/{}/jobs'.format(dataset['dataset_id']), keys='job_index')
+    log.info('{}: {} tasks in {} jobs'.format(dataset['dataset'], len(tasks), len(jobs)))
+    return [process_task_stats(req, dataset, jobs[task['job_id']], task) for task in tasks.values()]
 
 async def get_task_stats(req, datasets):
     for dataset in datasets:
         data, index = [], []
+        t0 = time.time()
         for j, row in enumerate(asyncio.as_completed(await process_tasks(req, dataset))):
             k,v = await row
             index.append(k)
             data.append(v)
+            if (j+1) % 10000 == 0:
+                dt = time.time() - t0
+                log.info("...{} tasks done ({:.1f}/s)".format(j+1,10000/dt))
+                t0 = time.time()
         yield dataset['dataset'], pd.DataFrame(data, index=pd.MultiIndex.from_tuples(index, names=('dataset', 'task', 'job')))
-    # configs = {}
-    # for dataset, config in zip(datasets, asyncio.as_completed([req('/config/{}'.format(dataset['dataset_id'])) for dataset in datasets])):
-    #     config = await config
-    #     configs[dataset['dataset']] = config
 
 async def aenumerate(asequence, start=0):
     """Asynchronously enumerate an async iterator from a given start value"""
@@ -149,12 +140,3 @@ if __name__ == "__main__":
     asyncio.get_event_loop().run_until_complete(
         run(args.token, args.outfile, args.max_parallel_requests)
     )
-
-    # df, configs = asyncio.get_event_loop().run_until_complete(
-    #     get_task_stats(args.token, num_datasets=args.limit_datasets, parallel_requests=args.max_parallel_requests)
-    # )
-    # if 'os_req' in df.columns:
-    #     df = df.drop(columns=['os_req'])
-    # df.to_hdf(args.outfile+".hdf5", '/tasks')
-    # with open(args.outfile+".configs.json", "w") as f:
-    #     json.dump(configs, f, indent=1)
