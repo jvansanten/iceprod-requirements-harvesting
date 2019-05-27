@@ -26,7 +26,6 @@ def giveup(exc):
     """
     isinstance(exc, aiohttp.client_exceptions.ClientResponseError) and exc.code == 403
 
-_cache = {}
 @backoff.on_exception(backoff.expo,
     (
     TimeoutError,
@@ -41,11 +40,9 @@ async def limited_req(path, session, semaphore):
     """
     Acquire semaphore and issue a GET request
     """
-    if not path in _cache:
-        async with semaphore:
-            response = await session.get('https://iceprod2-api.icecube.wisc.edu'+path)
-            _cache[path] = await response.json()
-    return _cache[path]
+    async with semaphore:
+        response = await session.get('https://iceprod2-api.icecube.wisc.edu'+path)
+        return await response.json()
 
 async def process_task_stats(req, dataset, task):
     stats = await req('/datasets/{}/tasks/{}/task_stats'.format(task['dataset_id'], task['task_id']))
