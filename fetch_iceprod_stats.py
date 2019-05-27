@@ -14,19 +14,28 @@ import pandas as pd
 import json
 import logging
 
-log = logging.getLogger(__name__)
+log = logging.getLogger("fetch_iceprod_stats")
 def on_backoff(details):
     log.warn("Backing off {wait:0.1f} seconds afters {tries} tries "
            "calling function {target} with args {args} and kwargs "
            "{kwargs}".format(**details))
 
+def giveup(exc):
+    """
+    Give up on 403 Unauthorized
+    """
+    isinstance(exc, aiohttp.client_exceptions.ClientResponseError) and exc.code == 403
+
 _cache = {}
 @backoff.on_exception(backoff.expo,
     (
     TimeoutError,
+    aiohttp.client_exceptions.ClientResponseError,
     aiohttp.client_exceptions.ClientConnectionError,
     aiohttp.client_exceptions.ServerDisconnectedError,
     ),
+    logger=None,
+    giveup=giveup,
     on_backoff=on_backoff)
 async def limited_req(path, session, semaphore):
     """
