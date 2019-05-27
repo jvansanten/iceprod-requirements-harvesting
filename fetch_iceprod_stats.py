@@ -51,16 +51,17 @@ async def process_task_stats(req, dataset, task):
 
     item = {k+'_req':v for k,v in task['requirements'].items()}
     try:
-        final_stat = next((stat for stat in stats.values() if 'resources' in stat['stats']))
+        final_stat = next((stat for stat in stats.values() if not stat['stats'].get('error', True)))
         item['time_finished'] = pd.Timestamp(final_stat['stats']['time'])
         item.update(**{k+'_used':v for k,v in final_stat['stats']['resources'].items()})
     except StopIteration:
         # no final stat, whuffor?
         pass
+    item['mem_wastage'] = 0.
     for s in stats.values():
         # early task stats were stored as strings. skip them.
-        if 'error_summary' in s['stats'] or not isinstance(s['stats']['task_stats'], dict):
-            continue
+        if s['stats'].get('error_summary').startswith('Resource overusage for memory'):
+            item['mem_wastage'] += s['stats']['resources']['memory']*s['stats']['resources']['time']
         if len(s['stats']['task_stats'].get('download', [])):
             item['input_size'] = sum(f['size'] for f in s['stats']['task_stats']['download'])/(2**30)
             item['input_duration'] = sum(f['duration'] for f in s['stats']['task_stats']['download'])/3600.
