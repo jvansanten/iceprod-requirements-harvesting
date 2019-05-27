@@ -59,9 +59,12 @@ async def process_task_stats(req, dataset, task):
         pass
     item['mem_wastage'] = 0.
     for s in stats.values():
-        # early task stats were stored as strings. skip them.
-        if s['stats'].get('error_summary').startswith('Resource overusage for memory'):
+        if s['stats'].get('error_summary','').startswith('Resource overusage for memory'):
             item['mem_wastage'] += s['stats']['resources']['memory']*s['stats']['resources']['time']
+            continue
+        elif isinstance (s['stats'].get('task_stats', ''), str):
+            # early task stats were stored as strings. skip them.
+            continue
         if len(s['stats']['task_stats'].get('download', [])):
             item['input_size'] = sum(f['size'] for f in s['stats']['task_stats']['download'])/(2**30)
             item['input_duration'] = sum(f['duration'] for f in s['stats']['task_stats']['download'])/3600.
