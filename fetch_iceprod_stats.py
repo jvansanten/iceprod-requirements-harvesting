@@ -9,6 +9,7 @@ import os
 import asyncio
 import aiohttp
 import backoff
+from clint.textui import progress
 from functools import partial
 from itertools import islice
 import tables
@@ -83,15 +84,11 @@ async def process_tasks(req, dataset):
 async def get_task_stats(req, datasets):
     for dataset in datasets:
         data, index = [], []
-        t0 = time.time()
-        for j, row in enumerate(asyncio.as_completed(await process_tasks(req, dataset))):
+        tasks = await process_tasks(req, dataset)
+        for row in progress.bar(asyncio.as_completed(tasks), label=dataset['dataset'], expected_size=len(tasks)):
             k,v = await row
             index.append(k)
             data.append(v)
-            if (j+1) % 10000 == 0:
-                dt = time.time() - t0
-                log.info("...{} tasks done ({:.1f}/s)".format(j+1,10000/dt))
-                t0 = time.time()
         yield dataset['dataset'], pd.DataFrame(data, index=pd.MultiIndex.from_tuples(index, names=('dataset', 'task', 'job')))
 
 async def aenumerate(asequence, start=0):
