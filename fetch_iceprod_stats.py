@@ -67,12 +67,18 @@ async def process_task_stats(req, dataset, job, task):
         elif isinstance (s['stats'].get('task_stats', ''), str):
             # early task stats were stored as strings. skip them.
             continue
-        if len(s['stats']['task_stats'].get('download', [])):
-            item['input_size'] = sum(f['size'] for f in s['stats']['task_stats']['download'])/(2**30)
-            item['input_duration'] = sum(f['duration'] for f in s['stats']['task_stats']['download'])/3600.
-        if len(s['stats']['task_stats'].get('upload', [])):
-            item['output_size'] = sum(f['size'] for f in s['stats']['task_stats']['upload'])/(2**30)
-            item['output_duration'] = sum(f['duration'] for f in s['stats']['task_stats']['upload'])/3600.
+        try:
+            downloads = [f for f in s['stats']['task_stats'].get('download', []) if not f.get('error', False)]
+            if downloads:
+                item['input_size'] = sum(f['size'] for f in downloads)/(2**30)
+                item['input_duration'] = sum(f['duration'] for f in downloads)/3600.
+            uploads = [f for f in s['stats']['task_stats'].get('upload', []) if not f.get('error', False)]
+            if uploads:
+                item['output_size'] = sum(f['size'] for f in uploads)/(2**30)
+                item['output_duration'] = sum(f['duration'] for f in uploads)/3600.
+        except KeyError:
+            print(s['stats'])
+            raise
     index = (dataset['dataset'], task['task_index'], job['job_index'])
     return index, item
 
