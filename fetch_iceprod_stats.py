@@ -28,7 +28,7 @@ def giveup(exc):
     """
     Give up on 403 Unauthorized
     """
-    isinstance(exc, aiohttp.client_exceptions.ClientResponseError) and exc.code == 403
+    return isinstance(exc, aiohttp.client_exceptions.ClientResponseError) and exc.code == 403
 
 @backoff.on_exception(backoff.expo,
     (
