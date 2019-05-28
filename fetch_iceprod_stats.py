@@ -16,6 +16,7 @@ import tables
 import pandas as pd
 import json
 import logging
+import warnings
 
 log = logging.getLogger("fetch_iceprod_stats")
 def on_backoff(details):
@@ -114,7 +115,9 @@ async def run(token, outfile, parallel_requests=100):
             if 'os_req' in df.columns:
                 df = df.drop(columns=['os_req'])
             df = df.sort_index()
-            df.to_hdf(outfile, mode='a', key="/{}".format(key))
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore', tables.NaturalNameWarning)
+                df.to_hdf(outfile, mode='a', key="/{}".format(key))
             log.info('{} complete ({} of {}) {} tasks'.format(key, i+1, len(datasets), len(df)))
 
 if __name__ == "__main__":
