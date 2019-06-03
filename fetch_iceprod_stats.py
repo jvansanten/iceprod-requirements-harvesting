@@ -62,7 +62,7 @@ async def process_task_stats(req, dataset, job, task):
         if s['stats'].get('error_summary','').startswith('Resource overusage for memory'):
             item['mem_wastage'] += s['stats']['resources']['memory']*s['stats']['resources']['time']
             continue
-        elif isinstance (s['stats'].get('task_stats', ''), str):
+        elif 'task_stats' in s['stats'] and isinstance(s['stats']['task_stats'], str):
             # early task stats were stored as strings
             s['stats']['task_stats'] = json.loads(s['stats']['task_stats'])
         try:
