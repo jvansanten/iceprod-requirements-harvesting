@@ -107,7 +107,7 @@ async def run(token, outfile, parallel_requests=100):
     semaphore = asyncio.Semaphore(parallel_requests)
     async with aiohttp.ClientSession(headers={'Authorization': 'bearer '+token}, raise_for_status=True) as session:
         req = partial(limited_req, session=session, semaphore=semaphore)
-        datasets = await req('/datasets')
+        datasets = await req('/datasets', keys='dataset|dataset_id')
         try:
             with tables.open_file(outfile, 'r') as hdf:
                 existing = set(hdf.root._v_children.keys())
