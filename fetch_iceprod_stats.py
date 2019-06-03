@@ -52,21 +52,19 @@ async def process_task_stats(req, dataset, job, task):
     stats = await req('/datasets/{}/tasks/{}/task_stats'.format(task['dataset_id'], task['task_id']))
 
     item = {k+'_req':v for k,v in task['requirements'].items()}
-    try:
-        final_stat = next((stat for stat in stats.values() if not stat['stats'].get('error', True)))
+    final_stat = max([stat for stat in stats.values() if 'resources' in stat['stats']], default=None, key=lambda stat: stat['stats']['time'])
+    if final_stat:
+        # final_stat = next((stat for stat in stats.values() if not stat['stats'].get('error', False)))
         item['time_finished'] = pd.Timestamp(final_stat['stats']['time'])
         item.update(**{k+'_used':v for k,v in final_stat['stats']['resources'].items()})
-    except StopIteration:
-        # no final stat, whuffor?
-        pass
     item['mem_wastage'] = 0.
     for s in stats.values():
         if s['stats'].get('error_summary','').startswith('Resource overusage for memory'):
             item['mem_wastage'] += s['stats']['resources']['memory']*s['stats']['resources']['time']
             continue
         elif isinstance (s['stats'].get('task_stats', ''), str):
-            # early task stats were stored as strings. skip them.
-            continue
+            # early task stats were stored as strings
+            s['stats']['task_stats'] = json.loads(s['stats']['task_stats'])
         try:
             downloads = [f for f in s['stats']['task_stats'].get('download', []) if not f.get('error', False)]
             if downloads:
