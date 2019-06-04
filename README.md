@@ -14,6 +14,7 @@ IceProd2 database.
 * Set the API token as an environment variable: `echo ICEPROD_TOKEN=ICEPROD_TOKEN=eyJ0eXAiO...`
 * Get resource usage: `python fetch_iceprod_stats.py logs resource_usage.iceprod25.v0.hdf5`
 * Get configs: `python fetch_iceprod_stats.py configs configs.iceprod25.v0.json`
+* Upload to share directory (optional): `./cloudsend.sh resource_usage.iceprod25.v2.hdf5 https://desycloud.desy.de/index.php/s/...`
 
 ## sqlite dump (<=v2.3)
 
