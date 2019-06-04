@@ -28,7 +28,7 @@ def giveup(exc):
     """
     Give up on 403 Unauthorized
     """
-    return isinstance(exc, aiohttp.client_exceptions.ClientResponseError) and exc.code == 403
+    return isinstance(exc, aiohttp.client_exceptions.ClientResponseError) and exc.code in (403, 404)
 
 @backoff.on_exception(backoff.expo,
     (
@@ -106,8 +106,8 @@ async def aenumerate(asequence, start=0):
         yield n, elem
         n += 1
 
-async def run(token, outfile, parallel_requests=100):
-    semaphore = asyncio.Semaphore(parallel_requests)
+async def fetch_logs(token, outfile, max_parallel_requests=100):
+    semaphore = asyncio.Semaphore(max_parallel_requests)
     async with aiohttp.ClientSession(headers={'Authorization': 'bearer '+token}, raise_for_status=True) as session:
         req = partial(limited_req, session=session, semaphore=semaphore)
         datasets = await req('/datasets', keys='dataset|dataset_id')
@@ -127,13 +127,39 @@ async def run(token, outfile, parallel_requests=100):
                 df.to_hdf(outfile, mode='a', key="/{}".format(key))
             log.info('{} complete ({} of {}) {} tasks'.format(key, i+1, len(datasets), len(df)))
 
+async def fetch_configs(token, outfile, max_parallel_requests=100):
+    semaphore = asyncio.Semaphore(max_parallel_requests)
+    async with aiohttp.ClientSession(headers={'Authorization': 'bearer '+token}, raise_for_status=True) as session:
+        req = partial(limited_req, session=session, semaphore=semaphore)
+        datasets = await req('/datasets', keys='dataset|dataset_id')
+        tasks = [req('/config/{dataset_id}'.format(**ds)) for ds in datasets.values()]
+        with open(outfile, 'w') as f:
+            for config in progress.bar(asyncio.as_completed(tasks), label='configs', expected_size=len(tasks)):
+                try:
+                    config = await config
+                except aiohttp.client_exceptions.ClientResponseError as e:
+                    log.warn("{.request_info.url} not found".format(e))
+                    continue
+                json.dump(config, f)
+                f.write('\n')
+
 if __name__ == "__main__":
     from argparse import ArgumentParser
     parser = ArgumentParser(description=__doc__)
-    parser.add_argument("--limit-datasets", help="number of datasets to fetch", type=int, default=None)
-    parser.add_argument("-p", "--max-parallel-requests", help="number of requests to issue in parallel", type=int, default=100)
-    parser.add_argument('--token', help="IceProd2 API token", default=None)
-    parser.add_argument("outfile", help="output file name")
+    subparsers = parser.add_subparsers(help='command help', dest='command')
+    subparsers.required = True
+
+    p = subparsers.add_parser('logs')
+    p.set_defaults(func=fetch_logs)
+
+    p = subparsers.add_parser('configs')
+    p.set_defaults(func=fetch_configs)
+
+    for p in subparsers._name_parser_map.values():
+        p.add_argument("-p", "--max-parallel-requests", help="number of requests to issue in parallel", type=int, default=100)
+        p.add_argument('--token', help="IceProd2 API token", default=None)
+        p.add_argument("outfile", help="output file name")
+
     args = parser.parse_args()
 
     if args.token is None:
@@ -144,6 +170,9 @@ if __name__ == "__main__":
     FORMAT = '[%(asctime)-15s %(name)s] %(message)s'
     logging.basicConfig(format=FORMAT,level='INFO')
 
+    kwargs = vars(args)
+    kwargs.pop('command')
+    func = kwargs.pop('func')
     asyncio.get_event_loop().run_until_complete(
-        run(args.token, args.outfile, args.max_parallel_requests)
+        func(**kwargs)
     )
