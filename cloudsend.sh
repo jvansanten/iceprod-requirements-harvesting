@@ -76,7 +76,7 @@ fi
 # Validate input
 
 FILENAME="$1"
-CLOUDURL="${2%/s/*}"
+CLOUDURL="${2%/index.php/s/*}"
 FOLDERTOKEN="${2##*/s/}"
 
 if [ ! -f "$FILENAME" ]; then
@@ -107,4 +107,4 @@ fi
 ##########################
 # Send file
 
-"$CURLBIN"$INSECURE -X PUT --data-binary @"$FILENAME" -u "${FOLDERTOKEN}:" -H "$HEADER" "$CLOUDURL/$PUBSUFFIX/$FILENAME"
+"$CURLBIN"$INSECURE -X PUT --data-binary @"$FILENAME" -u "${FOLDERTOKEN}:" "$CLOUDURL/$PUBSUFFIX/$FILENAME" | tee /dev/null
