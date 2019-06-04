@@ -8,6 +8,13 @@ IceProd2 database.
 * `fetch_iceprod_stats.py`: extract stats from production database using the
   REST API. Requires an API token.
 
+### Usage
+
+* Get an API token from https://iceprod2.icecube.wisc.edu/profile and refresh it daily
+* Set the API token as an environment variable: `echo ICEPROD_TOKEN=ICEPROD_TOKEN=eyJ0eXAiO...`
+* Get resource usage: `python fetch_iceprod_stats.py logs resource_usage.iceprod25.v0.hdf5`
+* Get configs: `python fetch_iceprod_stats.py configs configs.iceprod25.v0.json`
+
 ## sqlite dump (<=v2.3)
 
 Older versions of IceProd2 were backed by a relational DB with no outside API
