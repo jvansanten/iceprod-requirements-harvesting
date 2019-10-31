@@ -92,7 +92,11 @@ async def process_tasks(req, dataset):
 async def get_task_stats(req, datasets):
     for dataset in datasets:
         data, index = [], []
-        tasks = await process_tasks(req, dataset)
+        try:
+            tasks = await process_tasks(req, dataset)
+        except aiohttp.client_exceptions.ClientResponseError as e:
+            log.error("dataset {} {.request_info.url} returned {.status} {.message}".format(dataset['dataset'],*(e,)*3))
+            continue
         for row in progress.bar(asyncio.as_completed(tasks), label=dataset['dataset'], expected_size=len(tasks)):
             k,v = await row
             index.append(k)
@@ -106,18 +110,23 @@ async def aenumerate(asequence, start=0):
         yield n, elem
         n += 1
 
-async def fetch_logs(token, outfile, max_parallel_requests=100):
+async def fetch_logs(token, outfile, include_datasets, max_parallel_requests=100):
     semaphore = asyncio.Semaphore(max_parallel_requests)
     async with aiohttp.ClientSession(headers={'Authorization': 'bearer '+token}, raise_for_status=True) as session:
         req = partial(limited_req, session=session, semaphore=semaphore)
         datasets = await req('/datasets', keys='dataset|dataset_id')
         try:
             with tables.open_file(outfile, 'r') as hdf:
-                existing = set(hdf.root._v_children.keys())
+                skip = set(hdf.root._v_children.keys())
         except OSError:
-            existing = set()
-        
-        datasets = list(reversed([v for v in datasets.values() if not str(v['dataset']) in existing]))
+            skip = set()
+        if include_datasets:
+            for v in datasets.values():
+                if str(v['dataset']) not in include_datasets:
+                    skip.add(str(v['dataset']))
+                elif str(v['dataset']) in skip:
+                    skip.remove(str(v['dataset']))
+        datasets = list(reversed([v for v in datasets.values() if not str(v['dataset']) in skip]))
         async for i, (key, df) in aenumerate(get_task_stats(req, datasets)):
             if 'os_req' in df.columns:
                 df = df.drop(columns=['os_req'])
@@ -151,6 +160,7 @@ if __name__ == "__main__":
 
     p = subparsers.add_parser('logs')
     p.set_defaults(func=fetch_logs)
+    p.add_argument('-d', '--datasets', dest='include_datasets', default=[], nargs='+', help='fetch only these datasets')
 
     p = subparsers.add_parser('configs')
     p.set_defaults(func=fetch_configs)
