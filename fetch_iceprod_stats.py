@@ -50,7 +50,6 @@ async def limited_req(path, session, semaphore, **kwargs):
 
 async def process_task_stats(req, dataset, job, task):
     stats = await req('/datasets/{}/tasks/{}/task_stats'.format(task['dataset_id'], task['task_id']))
-
     item = {k+'_req':v for k,v in task['requirements'].items()}
     final_stat = max([stat for stat in stats.values() if 'resources' in stat['stats']], default=None, key=lambda stat: stat['stats']['time'])
     if final_stat:
@@ -59,9 +58,15 @@ async def process_task_stats(req, dataset, job, task):
         item.update(**{k+'_used':v for k,v in final_stat['stats']['resources'].items()})
     item['mem_wastage'] = 0.
     for s in stats.values():
+        item["site"] = s["stats"].get("site", None)
+        item["hostname"] = s["stats"].get("hostname", None)
         if s['stats'].get('error_summary','').startswith('Resource overusage for memory'):
-            item['mem_wastage'] += s['stats']['resources']['memory']*s['stats']['resources']['time']
-            continue
+            if "resources" in s["stats"]:
+                item['mem_wastage'] += s['stats']['resources']['memory']*s['stats']['resources']['time']
+                continue
+            else:
+                print(s)
+                continue
         elif 'error_summary' in s['stats']:
             # miscellaneous error unrelated to resource usage
             continue
