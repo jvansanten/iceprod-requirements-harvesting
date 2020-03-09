@@ -68,7 +68,7 @@ async def process_task_stats(req, dataset, job, task):
                 print(s)
                 continue
         elif 'error_summary' in s['stats']:
-            # miscellaneous error unrelated to resource usage
+        # miscellaneous error unrelated to resource usage
             continue
         elif 'task_stats' in s['stats'] and isinstance(s['stats']['task_stats'], str):
             # early task stats were stored as strings
