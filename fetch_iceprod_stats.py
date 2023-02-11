@@ -18,7 +18,7 @@ import json
 import logging
 import warnings
 
-from rest_tools.clients import SavedDeviceGrantAuth
+from rest_tools.client import SavedDeviceGrantAuth
 
 
 log = logging.getLogger("fetch_iceprod_stats")
@@ -180,7 +180,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     kwargs = vars(args)
 
-    rc = SavedDeviceGrantAuth('https://iceprod2-api.icecube.wisc.edu', 'https://keycloak.icecube.wisc.edu/auth/realms/IceCube', '.iceprod-auth', 'iceprod')
+    rc = SavedDeviceGrantAuth('https://iceprod2-api.icecube.wisc.edu', 'https://keycloak.icecube.wisc.edu/auth/realms/IceCube', '.iceprod-auth', 'iceprod-public')
     kwargs['token'] = rc._openid_token()
 
     FORMAT = '[%(asctime)-15s %(name)s] %(message)s'

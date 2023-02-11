@@ -4,20 +4,25 @@ This is a collection of tools for extracting resource usage summaries from the
 IceProd2 database.
 
 
-## REST API (>v2.6)
+## REST API (>2.6)
 
 * `fetch_iceprod_stats.py`: extract stats from production database using the
   REST API. Requires login to IceCube SSO.
 
 ### Usage
 
-* Pip install `wipac-rest-tools>=1.4.8`
+* Set up a Python environment:
+  ```
+  python3 -m virtualenv env
+  . env/bin/activate
+  pip install -r requirements.txt
+  ```
 * Get resource usage: `python fetch_iceprod_stats.py logs resource_usage.iceprod25.v0.hdf5`
 * Get configs: `python fetch_iceprod_stats.py configs configs.iceprod25.v0.json`
 * Upload to share directory (optional): `./cloudsend.sh resource_usage.iceprod25.v2.hdf5 https://desycloud.desy.de/index.php/s/...`
 
 
-## REST API (v2.3 < v < v2.6)
+## REST API (2.3 < v < 2.6)
 
 These versions of IceProd2 requred a special API token.
 
