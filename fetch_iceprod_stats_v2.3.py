@@ -18,9 +18,6 @@ import json
 import logging
 import warnings
 
-from rest_tools.client import SavedDeviceGrantAuth
-
-
 log = logging.getLogger("fetch_iceprod_stats")
 def on_backoff(details):
     log.warn("Backing off {wait:0.1f} seconds afters {tries} tries "
@@ -175,17 +172,20 @@ if __name__ == "__main__":
 
     for p in subparsers._name_parser_map.values():
         p.add_argument("-p", "--max-parallel-requests", help="number of requests to issue in parallel", type=int, default=100)
+        p.add_argument('--token', help="IceProd2 API token", default=None)
         p.add_argument("outfile", help="output file name")
 
     args = parser.parse_args()
-    kwargs = vars(args)
 
-    rc = SavedDeviceGrantAuth('https://iceprod2-api.icecube.wisc.edu', 'https://keycloak.icecube.wisc.edu/auth/realms/IceCube', '.iceprod-auth', 'iceprod-public')
-    kwargs['token'] = rc._openid_token()
+    if args.token is None:
+        args.token = os.environ.get('ICEPROD_TOKEN', None)
+    if args.token is None:
+        parser.error("You must specify an API token, either on the command line or in the environment variable ICEPROD_TOKEN. Get one from https://iceprod2.icecube.wisc.edu/profile daily.")
 
     FORMAT = '[%(asctime)-15s %(name)s] %(message)s'
     logging.basicConfig(format=FORMAT,level='INFO')
 
+    kwargs = vars(args)
     kwargs.pop('command')
     func = kwargs.pop('func')
     asyncio.get_event_loop().run_until_complete(

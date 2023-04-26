@@ -1,0 +1,6 @@
+aiohttp
+backoff
+clint
+pandas
+tables
+wipac-rest-tools>=1.4.8
