@@ -48,7 +48,7 @@ async def limited_req(path, session, semaphore, **kwargs):
     Acquire semaphore and issue a GET request
     """
     async with semaphore:
-        async with session.get('https://iceprod2-api.icecube.wisc.edu'+path, params=kwargs) as response:
+        async with session.get('https://api.iceprod.icecube.aq'+path, params=kwargs) as response:
             return await response.json()
 
 async def process_task_stats(req, dataset, job, task):
